@@ -1,8 +1,20 @@
+import json
+from pathlib import Path
 from app.common.gemini.client import GeminiClient
 
-low_model="gemini-3.1-flash-lite"
-medium_model="gemini-3.5-flash"
-high_model="gemini-3.6-flash"
+list_model = [
+    "gemini-3.1-flash-lite",
+	"gemini-3.8-flash",
+	"gemini-3.6-flash",
+	"gemini-3.5-flash-lite",
+    "gemini-3-flash",
+	"gemini-2.5-flash-lite",
+	"gemini-2.5-flash"
+]
+
+low_model="gemini-3.5-flash-lite"
+medium_model="gemini-3.6-flash"
+high_model="gemini-3.8-flash"
 
 complex_keywords_vi = [
     "phân tích", "so sánh", "code", "thuật toán", "lập kế hoạch", 
@@ -77,4 +89,113 @@ def assess_complexity(prompt: str) -> str:
         )
     
     return result
+
+def generate_dataset_scoring_question_complexity(num_cases: int) -> str:
+    gemini = GeminiClient()
+
+    prompt = f"""
+    You are a professional data engineer.
+    Task: Generate {num_cases} unique test cases for each complexity tier (LOW, MEDIUM, HIGH).
+    Total output: {num_cases * 3} test cases.
+
+    Output ONLY valid JSON array, no explanations:
+
+    <example>
+        [
+            {{"id": "tc_01", "prompt": "Thủ đô của Việt Nam là gì", "category": "qa", "expected_tier": "LOW"}},
+            {{"id": "tc_02", "prompt": "So sánh Python vs Node.js", "category": "comparison", "expected_tier": "MEDIUM"}},
+            {{"id": "tc_03", "prompt": "Tối ưu QuickSort algorithm", "category": "coding", "expected_tier": "HIGH"}}
+        ]
+    </example>
+
+    Rules:
+    - Return ONLY JSON array
+    - No explanations, no markdown
+    - Each test case must be unique and realistic
+    - Assign tier based on complexity
+    
+    """
+
+    result = gemini.generate(
+        prompt=prompt,
+        model="gemini-3.1-flash-lite",
+        temperature=0.3,
+        max_output_tokens=4000,
+    )
+
+    output_dir = Path(__file__).parent / "outputs"
+    output_dir.mkdir(exist_ok=True)
+
+    output_file = output_dir / "dataset_scoring_question_complexity.json"
+    with open(output_file, "w", encoding="utf-8") as f:
+        f.write(result)
+
+    return result
+
+def classify_prompt_llm(user_prompt: str) -> str:
+    gemini = GeminiClient()
+    
+    system_prompt ="""
+        You are a senior LLM Evaluator + Prompt Engineering Expert.
+        Analyze the user prompt into and determine its level of complexity tiers: LOW, MEDIUM, HIGH.
+    """
+
+    xml_tag = """
+        <rules>
+            LOW: Simple, straightforward, and easy to understand. Requires minimal reasoning or domain knowledge.
+            MEDIUM: Moderately complex, requiring some reasoning, analysis, or domain knowledge.
+            HIGH: Complex, requiring advanced reasoning, deep domain knowledge, or creative problem-solving.
+        </rules>
+    """
+
+    few_shot_prompting = """
+        <examples>
+            <example>
+                <user_prompt>Liệt kê 3 loại trái cây?</user_prompt>
+                <response>LOW</response>
+            </example>
+            <example>
+                <user_prompt>Viết một kịch bản kiểm thử (test case) cho chức năng đăng nhập</user_prompt>
+                <response>MEDIUM</response>
+            </example>
+            <example>
+                <user_prompt>Thiết kế hệ thống thanh toán trực tuyến đảm bảo tính toàn vẹn dữ liệu</user_prompt>
+                <response>HIGH</response>
+            </example>
+        </examples>
+    """
+
+    chain_of_thought_prompting = """
+        <reasoning>
+            Analyze the user prompt and determine its complexity tier based on the provided rules and examples.
+            Consider factors such as reasoning required, domain knowledge, and problem-solving complexity.
+        </reasoning>
+    """
+
+    prompt = f"""
+        {system_prompt}
+
+        Output result LOW or MEDIUM or HARD, no explanations, no reasons:
+        <user_prompt>{user_prompt}</user_prompt>
+
+        {xml_tag}
+        {few_shot_prompting}
+        {chain_of_thought_prompting}
+    """
+
+    result = gemini.generate(
+        prompt=prompt,
+        model="gemini-3.1-flash-lite",
+        temperature=0.3,
+        max_output_tokens=100,
+    )
+
+    print(f"Result: {result}")
+
+    return result
+
+
+
+    
+   
 
