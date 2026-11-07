@@ -8,12 +8,14 @@ mongo_client: AsyncMongoClient | None = None
 
 
 async def init_mongo(document_models: list[type[Document]] | None = None) -> None:
+    from app.module.dataset.entity import DatasetEntity
+
     global mongo_client
     mongo_client = AsyncMongoClient(settings.mongo_uri)
     await mongo_client.admin.command("ping")
     await init_beanie(
         database=mongo_client[settings.mongo_database],
-        document_models=document_models or [],
+        document_models=document_models or [DatasetEntity],
     )
 
 

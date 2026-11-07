@@ -49,6 +49,7 @@ class GeminiClient:
         schema: dict[str, Any],
         temperature: float | None = None,
         model: str | None = None,
+        max_output_tokens: int = 8192,
     ) -> Any:
         response = self.client.models.generate_content(
             model=model or self.model,
@@ -57,7 +58,7 @@ class GeminiClient:
                 temperature=self.default_temperature if temperature is None else temperature,
                 response_mime_type="application/json",
                 response_json_schema=schema,
-                # max_output_tokens=500,
+                max_output_tokens=max_output_tokens,
             ),
         )
         if not response.text:

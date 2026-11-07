@@ -8,6 +8,7 @@ from app.common.mongo import close_mongo, init_mongo
 from app.common.qdrant import close_qdrant, get_qdrant_client
 from app.module.prompt_evaluation.router import router as prompt_evaluation_router
 from app.module.multi_model_smart.router import router as multi_model_smart_router
+from app.module.multi_model_smart.lifecycle import seed_datasets
 
 
 class MessageResponse(BaseModel):
@@ -40,6 +41,7 @@ class DemoResponse(BaseModel):
 async def lifespan(app: FastAPI):
     if settings.mongo_enabled:
         await init_mongo()
+        await seed_datasets()
     if settings.qdrant_enabled:
         get_qdrant_client().get_collections()
     yield

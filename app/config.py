@@ -36,9 +36,15 @@ class Settings:
         "MONGO_URI",
         "mongodb://root:password@mongodb:27017/demo_ai?authSource=admin",
     )
-    mongo_database: str = os.getenv("MONGO_INITDB_DATABASE", "demo_ai")
+    mongo_database: str = os.getenv(
+        "MONGO_DATABASE",
+        os.getenv("MONGO_INITDB_DATABASE", "demo_ai"),
+    )
     qdrant_url: str = os.getenv("QDRANT_URL", "http://qdrant:6333")
     qdrant_api_key: str | None = os.getenv("QDRANT_API_KEY") or None
+    # Qdrant does not have a database name like MongoDB; use a collection
+    # name as the application namespace instead.
+    qdrant_collection_name: str = os.getenv("QDRANT_COLLECTION_NAME", "demo_ai")
     mongo_enabled: bool = get_bool_env("MONGO_ENABLED", default=False)
     qdrant_enabled: bool = get_bool_env("QDRANT_ENABLED", default=False)
 

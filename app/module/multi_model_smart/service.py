@@ -1,6 +1,7 @@
 import json
-from pathlib import Path
+from app.config import settings
 from app.common.gemini.client import GeminiClient
+from app.module.dataset.service import DatasetService
 
 list_model = [
     "gemini-3.1-flash-lite",
@@ -12,8 +13,8 @@ list_model = [
 	"gemini-2.5-flash"
 ]
 
-low_model="gemini-3.5-flash-lite"
-medium_model="gemini-3.6-flash"
+low_model="gemini-3.1-flash-lite"
+medium_model="gemini-3.5-flash-lite"
 high_model="gemini-3.8-flash"
 
 complex_keywords_vi = [
@@ -90,7 +91,10 @@ def assess_complexity(prompt: str) -> str:
     
     return result
 
-def generate_dataset_scoring_question_complexity(num_cases: int) -> str:
+async def generate_dataset_scoring_question_complexity(
+    num_cases: int,
+    temperature: float = 0.5,
+) -> str:
     gemini = GeminiClient()
 
     prompt = f"""
@@ -102,9 +106,12 @@ def generate_dataset_scoring_question_complexity(num_cases: int) -> str:
 
     <example>
         [
-            {{"id": "tc_01", "prompt": "Thủ đô của Việt Nam là gì", "category": "qa", "expected_tier": "LOW"}},
-            {{"id": "tc_02", "prompt": "So sánh Python vs Node.js", "category": "comparison", "expected_tier": "MEDIUM"}},
-            {{"id": "tc_03", "prompt": "Tối ưu QuickSort algorithm", "category": "coding", "expected_tier": "HIGH"}}
+            {{"id": "tc_01", "prompt": "Thủ đô của Việt Nam là gì", "category": "qa", "expected_tier": "LOW", "temperature": "0"}},
+            {{"id": "tc_02", "prompt": "So sánh Python vs Node.js", "category": "comparison", "expected_tier": "MEDIUM", "temperature": "0.3"}},
+            {{"id": "tc_03", "prompt": "Tối ưu QuickSort algorithm", "category": "coding", "expected_tier": "HIGH", "temperature": "0.5"}}
+            {{"id": "tc_01", "prompt": "Đưa cho tôi 1 vài ví dụ gợi ý phối đồ với áo sơ mi trắng", "category": "style", "expected_tier": "LOW", "temperature": "1"}},
+            {{"id": "tc_02", "prompt": "Thiết kế API endpoint cho chức năng đăng nhập", "category": "comparison", "expected_tier": "MEDIUM", "temperature": "0.3"}},
+            {{"id": "tc_03", "prompt": "Phân tích chiến lược di chuyển dữ liệu (Data Migration) không downtime", "category": "coding", "expected_tier": "HIGH", "temperature": "0.8"}}
         ]
     </example>
 
@@ -119,20 +126,30 @@ def generate_dataset_scoring_question_complexity(num_cases: int) -> str:
     result = gemini.generate(
         prompt=prompt,
         model="gemini-3.1-flash-lite",
-        temperature=0.3,
+        temperature=temperature,
         max_output_tokens=4000,
     )
 
-    output_dir = Path(__file__).parent / "outputs"
-    output_dir.mkdir(exist_ok=True)
+    dataset_value = json.loads(result)
+    if not isinstance(dataset_value, list):
+        raise ValueError("Gemini dataset output must be a JSON array.")
 
-    output_file = output_dir / "dataset_scoring_question_complexity.json"
-    with open(output_file, "w", encoding="utf-8") as f:
-        f.write(result)
+    print(f"dataset_value: {dataset_value}")
+    
+    record = await DatasetService.upsert(
+        module="multi_model_smart",
+        key="dataset_scoring_question_complexity",
+        value=dataset_value,
+    )
+    
+    print(f"record: {record}")
+    
 
     return result
 
-def classify_prompt_llm(user_prompt: str) -> str:
+def classify_prompt_llm(
+    user_prompt: str,
+) -> dict[str, str | float]:
     gemini = GeminiClient()
     
     system_prompt ="""
@@ -151,16 +168,79 @@ def classify_prompt_llm(user_prompt: str) -> str:
     few_shot_prompting = """
         <examples>
             <example>
-                <user_prompt>Liệt kê 3 loại trái cây?</user_prompt>
-                <response>LOW</response>
+                <user_prompt>Tên của các hành tinh trong hệ mặt trời</user_prompt>
+                {
+                    expected_tier: 'LOW',
+                    temperature: '0'
+                }
             </example>
             <example>
-                <user_prompt>Viết một kịch bản kiểm thử (test case) cho chức năng đăng nhập</user_prompt>
-                <response>MEDIUM</response>
+                <user_prompt>Viết một câu cảm thán về thời tiết miền bắc Việt Nam</user_prompt>
+                {
+                    expected_tier: 'LOW',
+                    temperature: '0.5'
+                }
             </example>
             <example>
-                <user_prompt>Thiết kế hệ thống thanh toán trực tuyến đảm bảo tính toàn vẹn dữ liệu</user_prompt>
-                <response>HIGH</response>
+                <user_prompt>Viết một câu đố vui về con mèo</user_prompt>
+                {
+                    expected_tier: 'LOW',
+                    temperature: '1'
+                }
+            </example>
+            <example>
+                <user_prompt>Viết code JavaScript để lấy dữ liệu từ API và hiển thị lên console</user_prompt>
+                <response>
+                {
+                    expected_tier: 'MEDIUM',
+                    temperature: '0.2'
+                }
+                </response>
+            </example>
+            <example>
+                <user_prompt>Giải thích nguyên lý hoạt động của Blockchain</user_prompt>
+                <response>
+                {
+                    expected_tier: 'MEDIUM',
+                    temperature: '0.4'
+                }
+                </response>
+            </example>
+            <example>
+                <user_prompt>Viết một kịch bản ngắn cho video quảng cáo sản phẩm cà phê</user_prompt>
+                <response>
+                {
+                    expected_tier: 'MEDIUM',
+                    temperature: '0.7'
+                }
+                </response>
+            </example>              
+            <example>
+                <user_prompt>Phân tích các rào cản pháp lý khi triển khai hệ thống định danh số quốc giau</user_prompt>
+                <response>
+                {
+                    expected_tier: 'HIGH',
+                    temperature: '0.5'
+                }
+                </response>
+            </example>
+            <example>
+                <user_prompt>Thiết kế hệ thống gợi ý sản phẩm (Recommendation System) dựa trên Collaborative Filtering</user_prompt>
+                <response>
+                {
+                    expected_tier: 'HIGH',
+                    temperature: '0.3'
+                }
+                </response>
+            </example>
+            <example>
+                <user_prompt>Đánh giá tác động của biến đổi khí hậu đối với an ninh lương thực toàn cầu</user_prompt>
+                <response>
+                {
+                    expected_tier: 'HIGH',
+                    temperature: '0.7'
+                }
+                </response>
             </example>
         </examples>
     """
@@ -175,7 +255,10 @@ def classify_prompt_llm(user_prompt: str) -> str:
     prompt = f"""
         {system_prompt}
 
-        Output result LOW or MEDIUM or HARD, no explanations, no reasons:
+        Return ONLY a valid JSON object with this shape:
+        {{"expected_tier": "LOW|MEDIUM|HIGH", "temperature": 0.0}}
+        Set temperature between 0.0 and 1.0 based on the response style needed.
+        Do not include explanations or markdown.
         <user_prompt>{user_prompt}</user_prompt>
 
         {xml_tag}
@@ -187,12 +270,67 @@ def classify_prompt_llm(user_prompt: str) -> str:
         prompt=prompt,
         model="gemini-3.1-flash-lite",
         temperature=0.3,
-        max_output_tokens=100,
+        max_output_tokens=5000,
     )
 
-    print(f"Result: {result}")
+    normalized_result = result.strip()
+    if normalized_result.startswith("```json"):
+        normalized_result = normalized_result[7:]
+    elif normalized_result.startswith("```"):
+        normalized_result = normalized_result[3:]
+    if normalized_result.endswith("```"):
+        normalized_result = normalized_result[:-3]
 
-    return result
+    try:
+        classification = json.loads(normalized_result.strip())
+    except json.JSONDecodeError as exc:
+        raise ValueError("Prompt classifier returned invalid JSON") from exc
+    if not isinstance(classification, dict):
+        raise ValueError("Prompt classifier result must be a JSON object")
+
+    expected_tier = str(classification.get("expected_tier", "")).upper()
+    if expected_tier not in {"LOW", "MEDIUM", "HIGH"}:
+        raise ValueError(f"Prompt classifier returned invalid tier: {expected_tier}")
+    try:
+        classified_temperature = float(classification["temperature"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("Prompt classifier returned an invalid temperature") from exc
+    if not 0.0 <= classified_temperature <= 2.0:
+        raise ValueError("Prompt classifier temperature must be between 0.0 and 2.0")
+
+    return {
+        "expected_tier": expected_tier,
+        "temperature": classified_temperature,
+    }
+
+
+def smart_route_prompt(prompt: str, *, max_output_tokens: int = 2000) -> dict[str, str | float]:
+    """Classify a prompt, choose a model from its tier, then answer the prompt."""
+    classification = classify_prompt_llm(user_prompt=prompt)
+    tier = str(classification.get("expected_tier", "")).upper()
+    if tier not in {"LOW", "MEDIUM", "HIGH"}:
+        raise ValueError(f"Prompt classifier returned unsupported tier: {tier}")
+
+    try:
+        temperature = float(classification["temperature"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("Prompt classifier did not return a valid temperature") from exc
+    if not 0.0 <= temperature <= 2.0:
+        raise ValueError("Prompt classifier temperature must be between 0.0 and 2.0")
+
+    selected_model = {"LOW": low_model, "MEDIUM": medium_model, "HIGH": high_model}[tier]
+    answer = GeminiClient().generate(
+        prompt=prompt,
+        model=selected_model,
+        temperature=temperature,
+        max_output_tokens=max_output_tokens,
+    )
+    return {
+        "tier": tier,
+        "model": selected_model,
+        "temperature": temperature,
+        "response": answer,
+    }
 
 
 
