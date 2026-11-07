@@ -47,6 +47,34 @@ four workers. Stop it with:
 make down
 ```
 
+## MongoDB and Qdrant
+
+MongoDB 8.0, Mongo Express 1.0.2-20, and Qdrant 1.20.0 each have dedicated
+Compose configuration files under `docker/`. Runtime environment is supplied
+from `.env` or `.env.production`, not embedded in Compose service definitions.
+MongoDB data persists under
+`data/mongo-data`; Qdrant data persists under `data/qdrant-storage`.
+
+Beanie connection lifecycle is in `app/common/mongo/connection.py`; the Qdrant
+client is in `app/common/qdrant/connection.py`. Both initialize through FastAPI
+lifespan when enabled in Compose.
+
+Start just MongoDB and Qdrant, or add Mongo Express:
+
+```powershell
+make dev-database
+make dev-db-ui
+```
+
+The Compose files can also be used directly:
+
+```powershell
+docker compose -p demo-ai --env-file .env -f docker/docker-compose.database.yaml up -d
+docker compose -p demo-ai --env-file .env -f docker/docker-compose.database.yaml -f docker/docker-compose.db-ui.yaml up -d
+```
+
+Mongo Express UI: <http://localhost:8081>. Qdrant dashboard/API: <http://localhost:6333/dashboard>.
+
 Without GNU Make, run Development with:
 
 ```powershell

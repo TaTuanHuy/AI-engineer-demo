@@ -1,7 +1,11 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from pydantic import BaseModel
 
 from app.config import settings
+from app.common.mongo import close_mongo, init_mongo
+from app.common.qdrant import close_qdrant, get_qdrant_client
 from app.module.prompt_evaluation.router import router as prompt_evaluation_router
 from app.module.multi_model_smart.router import router as multi_model_smart_router
 
@@ -32,6 +36,19 @@ class DemoResponse(BaseModel):
     service: str
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if settings.mongo_enabled:
+        await init_mongo()
+    if settings.qdrant_enabled:
+        get_qdrant_client().get_collections()
+    yield
+    if settings.mongo_enabled:
+        await close_mongo()
+    if settings.qdrant_enabled:
+        close_qdrant()
+
+
 app = FastAPI(
     title=settings.app_name,
     description="FastAPI demo project managed by uv and runnable with Docker.",
@@ -39,6 +56,7 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
+    lifespan=lifespan,
 )
 app.include_router(prompt_evaluation_router)
 app.include_router(multi_model_smart_router)

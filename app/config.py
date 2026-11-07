@@ -32,6 +32,15 @@ class Settings:
     gemini_api_key: str | None = os.getenv("GEMINI_API_KEY") or os.getenv(
         "GOOGLE_API_KEY"
     )
+    mongo_uri: str = os.getenv(
+        "MONGO_URI",
+        "mongodb://root:password@mongodb:27017/demo_ai?authSource=admin",
+    )
+    mongo_database: str = os.getenv("MONGO_INITDB_DATABASE", "demo_ai")
+    qdrant_url: str = os.getenv("QDRANT_URL", "http://qdrant:6333")
+    qdrant_api_key: str | None = os.getenv("QDRANT_API_KEY") or None
+    mongo_enabled: bool = get_bool_env("MONGO_ENABLED", default=False)
+    qdrant_enabled: bool = get_bool_env("QDRANT_ENABLED", default=False)
 
 
 settings = Settings()

@@ -1,0 +1,15 @@
+name: demo-ai
+
+services:
+  mongo-express:
+    image: mongo-express:1.0.2-20
+    container_name: demo-ai-mongo-express
+    env_file:
+      - ${APP_ENV_FILE:-../.env}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    ports:
+      - "${ME_PORT:-8081}:8081"
+    restart: unless-stopped
+

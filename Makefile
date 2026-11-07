@@ -2,8 +2,10 @@
 
 DEV_COMPOSE = docker compose -p demo-ai --env-file .env -f docker/docker-compose.development.yaml
 PROD_COMPOSE = docker compose -p demo-ai --env-file .env.production -f docker/docker-compose.production.yaml
+DEV_DATABASE = docker compose -p demo-ai --env-file .env -f docker/docker-compose.database.yaml
+DEV_DB_UI = docker compose -p demo-ai --env-file .env -f docker/docker-compose.database.yaml -f docker/docker-compose.db-ui.yaml
 
-.PHONY: help install local dev dev-logs dev-down test build run logs down clean
+.PHONY: help install local dev dev-logs dev-down dev-database dev-db-ui dev-database-down test build run logs down clean
 
 help:
 	@echo "Available commands:"
@@ -13,6 +15,8 @@ help:
 	@echo "  make local    Run Development locally without Docker"
 	@echo "  make dev-logs Follow Development container logs"
 	@echo "  make dev-down Stop the Development container"
+	@echo "  make dev-database Start MongoDB and Qdrant"
+	@echo "  make dev-db-ui Start MongoDB, Qdrant and Mongo Express"
 	@echo "  make test     Run tests"
 	@echo "  make build    Build the Production Docker image"
 	@echo "  make run      Run Production with Docker"
@@ -34,6 +38,15 @@ dev-logs:
 
 dev-down:
 	$(DEV_COMPOSE) down
+
+dev-database:
+	$(DEV_DATABASE) up -d
+
+dev-db-ui:
+	$(DEV_DB_UI) up -d
+
+dev-database-down:
+	$(DEV_DATABASE) down
 
 test:
 	uv run pytest

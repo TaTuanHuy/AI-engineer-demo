@@ -11,10 +11,6 @@ services:
       target: production
     ports:
       - "${APP_PORT:-8000}:${APP_PORT:-8000}"
-    environment:
-      APP_ENV: production
-      APP_HOST: 0.0.0.0
-      APP_RELOAD: "false"
     healthcheck:
       test:
         - CMD-SHELL
@@ -23,4 +19,5 @@ services:
       timeout: 10s
       retries: 3
       start_period: 5s
+
     restart: unless-stopped
