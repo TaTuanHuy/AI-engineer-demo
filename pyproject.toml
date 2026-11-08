@@ -11,6 +11,8 @@ dependencies = [
     "qdrant-client>=1.15.0",
     "python-dotenv>=1.0.0",
     "uvicorn[standard]>=0.34.0",
+    "geocoder>=1.38.1",
+    "tiktoken>=0.14.0",
 ]
 
 [dependency-groups]

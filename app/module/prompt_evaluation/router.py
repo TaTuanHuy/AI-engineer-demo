@@ -5,18 +5,17 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.common.gemini.client import GeminiClient
-from app.module.prompt_evaluation.schemas import DatasetRequest, EvaluateRequest
-from app.module.prompt_evaluation.service import (
-    DATA_DIR,
-    evaluate_prompt,
-    generate_dataset,
-    load_dataset_url,
-    safe_report_path,
-    save_report,
+from app.module.prompt_evaluation.schemas import (
+    DatasetRequest,
+    EvaluateRequest,
+    FrameworkDatasetRequest,
+    FrameworkPromptEvaluationRequest,
 )
+from app.module.prompt_evaluation.service import PromptEvaluationService
 
 
 router = APIRouter(prefix="/prompt-evaluation", tags=["Prompt Evaluation"])
+service = PromptEvaluationService()
 
 
 def get_gemini() -> GeminiClient:
@@ -26,10 +25,40 @@ def get_gemini() -> GeminiClient:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
+@router.post("/framework/datasets", status_code=201)
+async def create_framework_dataset(body: FrameworkDatasetRequest) -> dict:
+    try:
+        return await service.generate_framework_dataset(**body.model_dump())
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Framework dataset generation failed: {exc}",
+        ) from exc
+
+
+@router.post("/framework/evaluate")
+async def evaluate_framework(body: FrameworkPromptEvaluationRequest) -> dict:
+    try:
+        return await service.evaluate_framework_prompt(
+            module=body.module,
+            key=body.key,
+            user_prompt=body.user_prompt,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Framework prompt evaluation failed: {exc}",
+        ) from exc
+
+
 @router.post("/datasets", status_code=201)
 def create_dataset(body: DatasetRequest) -> dict:
     try:
-        dataset = generate_dataset(body, get_gemini())
+        dataset = service.generate_dataset(body, get_gemini())
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Dataset generation failed: {exc}") from exc
     dataset_id = dataset["id"]
@@ -45,9 +74,9 @@ def create_dataset(body: DatasetRequest) -> dict:
 
 @router.get("/datasets", response_class=HTMLResponse)
 def list_datasets() -> HTMLResponse:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    service.data_dir.mkdir(parents=True, exist_ok=True)
     rows = []
-    for path in sorted(DATA_DIR.glob("dataset-*.json"), reverse=True):
+    for path in sorted(service.data_dir.glob("dataset-*.json"), reverse=True):
         try:
             dataset = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
@@ -67,12 +96,12 @@ def list_datasets() -> HTMLResponse:
 @router.post("/evaluate")
 def run_evaluation(body: EvaluateRequest) -> dict:
     try:
-        dataset = load_dataset_url(str(body.dataset_url))
+        dataset = service.load_dataset_url(str(body.dataset_url))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     try:
-        report = evaluate_prompt(body.prompt, dataset, get_gemini())
-        html_file = save_report(report)
+        report = service.evaluate_prompt(body.prompt, dataset, get_gemini())
+        html_file = service.save_report(report)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Prompt evaluation failed: {exc}") from exc
     return {
@@ -89,7 +118,7 @@ def run_evaluation(body: EvaluateRequest) -> dict:
 @router.get("/files/{filename}")
 def get_file(filename: str):
     try:
-        path = safe_report_path(filename)
+        path = service.safe_report_path(filename)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="File not found") from exc
     if path.suffix == ".html":

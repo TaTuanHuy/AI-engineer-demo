@@ -5,4 +5,5 @@ __pycache__/
 *.py[cod]
 .env
 .env.production
+app/module/multi_model_smart/reports/
 

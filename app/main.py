@@ -8,6 +8,7 @@ from app.common.mongo import close_mongo, init_mongo
 from app.common.qdrant import close_qdrant, get_qdrant_client
 from app.module.prompt_evaluation.router import router as prompt_evaluation_router
 from app.module.multi_model_smart.router import router as multi_model_smart_router
+from app.module.weather.router import router as weather_router
 from app.module.multi_model_smart.lifecycle import seed_datasets
 
 
@@ -60,8 +61,9 @@ app = FastAPI(
     openapi_url="/openapi.json",
     lifespan=lifespan,
 )
-app.include_router(prompt_evaluation_router)
+# app.include_router(prompt_evaluation_router)
 app.include_router(multi_model_smart_router)
+app.include_router(weather_router)
 
 
 @app.get(

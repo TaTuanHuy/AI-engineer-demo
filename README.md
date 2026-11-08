@@ -75,6 +75,53 @@ docker compose -p demo-ai --env-file .env -f docker/docker-compose.database.yaml
 
 Mongo Express UI: <http://localhost:8081>. Qdrant dashboard/API: <http://localhost:6333/dashboard>.
 
+## Current weather API
+
+The weather module uses `geocoder` to resolve a place name into coordinates and
+Open-Meteo to retrieve a daily forecast. No API key is required for these
+requests.
+
+```http
+GET /weather/current?city=Ho%20Chi%20Minh&day=today
+```
+
+The `day` parameter accepts exactly `today`, `tomorrow`, or
+`day_after_tomorrow`. Omit `city` to infer the caller's approximate location
+from their public IP:
+
+```http
+GET /weather/current?day=tomorrow
+```
+
+IP geolocation is approximate. A browser or mobile client must send GPS
+coordinates separately if street-level device location is required.
+
+The response includes the resolved location, forecast date, minimum and maximum
+temperature, apparent temperature, precipitation, weather description, sunrise,
+sunset, and wind details. The weather values are supplied in Celsius and km/h.
+
+Gemini can call the weather service through the Python tool wrapper:
+
+```python
+from app.module.weather.tools import generate_weather_answer
+
+answer = generate_weather_answer(
+    "What will the weather be like in Boston tomorrow?"
+)
+print(answer)
+```
+
+The weather assistant endpoint only requires a prompt:
+
+```http
+POST /weather/ask
+Content-Type: application/json
+
+{
+  "prompt": "Ngày mai ở Hà Nội có mưa không?"
+}
+```
+
 Without GNU Make, run Development with:
 
 ```powershell
@@ -94,6 +141,35 @@ After startup, open the configured `APP_PORT`. The current defaults are port
 - Production Swagger: <http://localhost:8000/docs>
 
 ## Prompt evaluation API
+
+To evaluate the prompt currently used by `classify_prompt_llm`, call
+`await score_classify_prompt()` from `app.module.multi_model_smart.service`
+after MongoDB has been initialized. It reads the dataset saved by
+`generate_dataset_scoring_question_complexity`, runs the classifier for each
+case, and returns tier accuracy, temperature mean absolute error, and case
+details. Failed classifier calls count against tier accuracy. The saved labels
+are the reference for the score; review generated labels before relying on it.
+For each successful case, the matching score is the mean of tier matching
+(10 for an exact match, otherwise 0) and temperature matching
+(`10 * (1 - absolute_error / 2)`); cases without a reference temperature use
+only tier matching. `average_matching_score_successful` averages successful
+cases, while `average_matching_score_all_cases` also counts failures as zero.
+The report includes a SHA-256 fingerprint of the current classifier prompt and
+flags cases that exactly match a few-shot example after case and whitespace
+normalization. These indicators help compare runs; they do not prove the labels
+or results are correct.
+Each run also writes a standalone HTML report under
+`app/module/multi_model_smart/reports/` and returns its absolute path in
+`html_report_path`. With the development Compose bind mount, that directory is
+available on the host at the same path under the project root.
+
+Call `POST /multi-model-smart-route/classify-prompt/evaluate` (no request body)
+to run this evaluation. The response includes `html_report_url` for opening the
+report in a browser and per-case token counts. The complete classifier prompt,
+each input prompt, and the classifier prompt sections are counted using
+`tiktoken` with `cl100k_base`. These counts are estimates, not Gemini's own
+token counts. The aggregate includes all test cases, including failed calls.
+The first use may download the encoding data required by tiktoken.
 
 Gemini configuration is shared in `common/gemini/`; the model defaults to
 `gemini-3.1-flash` and can be changed with `GEMINI_MODEL`. Set
