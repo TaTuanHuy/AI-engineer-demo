@@ -2,7 +2,7 @@ import re
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 
 from app.config import settings
 from app.module.multi_model_smart.schemas import EasyAssessComplexityRequest, GenerateDatasetRequest, SmartRouteResponse, ClassifyPromptLLMRequest, ClassifyPromptLLMResponse, SmartRoutePromptRequest, SmartRoutePromptResponse
@@ -28,16 +28,6 @@ async def evaluate_classifier(request: Request) -> dict:
     filename = Path(result["html_report_path"]).name
     result["html_report_url"] = str(request.url_for("get_classifier_report", filename=filename))
     return result
-
-
-@router.get("/classify-prompt/reports/{filename}", name="get_classifier_report")
-def get_classifier_report(filename: str) -> FileResponse:
-    if not re.fullmatch(r"classifier-evaluation-[a-f0-9]{32}\.html", filename):
-        raise HTTPException(status_code=404, detail="Report not found")
-    report_path = Path(__file__).resolve().parent / "reports" / filename
-    if not report_path.is_file():
-        raise HTTPException(status_code=404, detail="Report not found")
-    return FileResponse(report_path, media_type="text/html; charset=utf-8")
 
 @router.post("/easy", response_model=SmartRouteResponse)
 def create_dataset(body: EasyAssessComplexityRequest) -> SmartRouteResponse:
@@ -68,16 +58,25 @@ def classify_prompt(body: ClassifyPromptLLMRequest) -> ClassifyPromptLLMResponse
         raise HTTPException(status_code=502, detail=f"Model routing failed: {exc}") from exc
 
 
-@router.post("/route_prompt", response_model=SmartRoutePromptResponse)
-def route_prompt(body: SmartRoutePromptRequest) -> SmartRoutePromptResponse:
-    """Classify the prompt, select model settings, then generate its answer."""
+@router.post("/route_prompt")
+def route_prompt(body: SmartRoutePromptRequest) -> PlainTextResponse:
+    """Classify the prompt, select model settings, then return the answer as markdown text."""
     try:
-        return SmartRoutePromptResponse(**smart_route_prompt(
+        result = smart_route_prompt(
             prompt=body.prompt,
             max_output_tokens=body.max_output_tokens,
-        ))
+        )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Smart prompt routing failed: {exc}") from exc
+    return PlainTextResponse(
+        result["response"],
+        media_type="text/markdown; charset=utf-8",
+        headers={
+            "X-Tier": str(result["tier"]),
+            "X-Model": str(result["model"]),
+            "X-Temperature": str(result["temperature"]),
+        },
+    )
 
 
 

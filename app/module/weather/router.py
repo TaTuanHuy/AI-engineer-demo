@@ -1,6 +1,7 @@
 import asyncio
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import PlainTextResponse
 
 from app.module.weather.schemas import (
     DailyWeatherResponse,
@@ -56,8 +57,8 @@ def _get_client_ip(request: Request) -> str | None:
 #     return DailyWeatherResponse(**result)
 
 
-@router.post("/ask", response_model=WeatherPromptResponse)
-async def ask_weather(body: WeatherPromptRequest) -> WeatherPromptResponse:
+@router.post("/ask")
+async def ask_weather(body: WeatherPromptRequest) -> PlainTextResponse:
     prompt = body.prompt.strip()
     if not prompt:
         raise HTTPException(status_code=422, detail="prompt must not be empty")
@@ -69,4 +70,4 @@ async def ask_weather(body: WeatherPromptRequest) -> WeatherPromptResponse:
             status_code=502,
             detail=f"Weather assistant failed: {exc}",
         ) from exc
-    return WeatherPromptResponse(answer=answer)
+    return PlainTextResponse(answer)
