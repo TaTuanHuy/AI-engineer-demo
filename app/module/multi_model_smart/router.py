@@ -2,7 +2,7 @@ import re
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import PlainTextResponse
 
 from app.config import settings
 from app.module.multi_model_smart.schemas import EasyAssessComplexityRequest, GenerateDatasetRequest, SmartRouteResponse, ClassifyPromptLLMRequest, ClassifyPromptLLMResponse, SmartRoutePromptRequest, SmartRoutePromptResponse
